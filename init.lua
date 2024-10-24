@@ -711,10 +711,6 @@ require('lazy').setup({
     },
   },
   { -- Autocompletion
-    'nvim-java/nvim-java',
-    opts = {},
-  },
-  { -- Autocompletion
     'hrsh7th/nvim-cmp',
     event = 'InsertEnter',
     dependencies = {
