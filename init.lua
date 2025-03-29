@@ -109,7 +109,29 @@ vim.opt.tabstop = 4
 vim.opt.mouse = 'a'
 -- Don't show the mode, since it's already in the status line
 vim.opt.showmode = false
+vim.o.shell = 'pwsh'
+vim.o.shellcmdflag =
+  '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;'
+vim.o.shellredir = '2>&1 | Out-File -Encoding UTF8 %s; exit $LastExitCode | Out-String'
+vim.o.shellpipe = '2>&1 | Out-File -Encoding UTF8 %s; exit $LastExitCode | Out-String'
+vim.o.shellquote = ''
+vim.o.shellxquote = ''
+vim.keymap.set('n', '<leader>!', function()
+  local input = vim.fn.input 'PowerShell command: '
+  if input ~= '' then
+    vim.cmd('!' .. input .. ' | Out-String')
+  end
+end, { desc = 'Run PowerShell command with Out-String' })
 
+vim.api.nvim_create_user_command('PSOut', function(opts)
+  local command = opts.args
+  local output = vim.fn.system('powershell -NoLogo -NoProfile -Command "' .. command .. ' | Format-List | Out-String"')
+  vim.cmd 'enew' -- Use current window, don't split
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(output, '\n'))
+  vim.bo.buftype = 'nofile'
+  vim.bo.bufhidden = 'wipe'
+  vim.bo.swapfile = false
+end, { nargs = '+' })
 -- Sync clipboard between OS and Neovim.
 --  Schedule the setting after `UiEnter` because it can increase startup-time.
 --  Remove this option if you want your OS clipboard to remain independent.
@@ -117,6 +139,86 @@ vim.opt.showmode = false
 vim.schedule(function()
   vim.opt.clipboard = 'unnamedplus'
 end)
+local cheat_history_file = vim.fn.stdpath 'data' .. '/cht_history.txt'
+
+local function save_to_history(entry)
+  local file = io.open(cheat_history_file, 'a')
+  if file then
+    file:write(entry .. '\n')
+    file:close()
+  end
+end
+
+local function get_history()
+  local lines = {}
+  local file = io.open(cheat_history_file, 'r')
+  if file then
+    for line in file:lines() do
+      table.insert(lines, line)
+    end
+    file:close()
+  end
+  return lines
+end
+
+local function open_cheat_buffer(lang, topic)
+  local url = 'https://cht.sh/' .. lang .. '/' .. topic .. '?T'
+  local output = vim.fn.system('curl -s ' .. vim.fn.shellescape(url))
+
+  vim.cmd 'enew'
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(output, '\n'))
+  vim.bo.buftype = 'nofile'
+  vim.bo.bufhidden = 'wipe'
+  vim.bo.swapfile = false
+  vim.bo.filetype = lang
+end
+
+vim.api.nvim_create_user_command('Cheat', function()
+  local lang = vim.fn.input 'Language: '
+  local topic = vim.fn.input 'Topic: '
+  if lang == '' then
+    print 'Lang required'
+    return
+  end
+
+  local formatted_topic = topic:gsub('%s+', '+')
+  local full_query = lang .. ' ' .. topic
+  save_to_history(full_query)
+  open_cheat_buffer(lang, formatted_topic)
+end, {})
+
+vim.api.nvim_create_user_command('CheatHistory', function()
+  local history = get_history()
+  if #history == 0 then
+    print 'No history yet.'
+    return
+  end
+
+  require('telescope.pickers')
+    .new({}, {
+      prompt_title = 'Cheat.sh History',
+      finder = require('telescope.finders').new_table {
+        results = history,
+      },
+      sorter = require('telescope.config').values.generic_sorter {},
+      attach_mappings = function(_, map)
+        local actions = require 'telescope.actions'
+        local action_state = require 'telescope.actions.state'
+        map('i', '<CR>', function(prompt_bufnr)
+          actions.close(prompt_bufnr)
+          local selection = action_state.get_selected_entry()
+          local parts = vim.split(selection[1], ' ')
+          local lang = parts[1]
+          local topic = table.concat(vim.list_slice(parts, 2), ' '):gsub('%s+', '+')
+          open_cheat_buffer(lang, topic)
+        end)
+        return true
+      end,
+    })
+    :find()
+end, {})
+vim.keymap.set('n', '<leader>ch', '<cmd>Cheat<CR>', { desc = 'Cheat.sh prompt' })
+vim.keymap.set('n', '<leader>cl', '<cmd>CheatHistory<CR>', { desc = 'Cheat.sh history' })
 
 -- Enable break indent
 vim.opt.breakindent = true
