@@ -117,9 +117,9 @@ vim.o.shellpipe = '2>&1 | Out-File -Encoding UTF8 %s; exit $LastExitCode | Out-S
 vim.o.shellquote = ''
 vim.o.shellxquote = ''
 vim.keymap.set('n', '<leader>!', function()
-  local input = vim.fn.input 'PowerShell command: '
+  local input = vim.fn.input ': '
   if input ~= '' then
-    vim.cmd('!' .. input .. ' | Out-String')
+    vim.cmd('PSOut ' .. input .. ' | Out-String')
   end
 end, { desc = 'Run PowerShell command with Out-String' })
 
