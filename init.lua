@@ -766,7 +766,6 @@ require('lazy').setup({
       local servers = {
         clangd = {},
         gopls = {},
-        csharp_ls = {},
         html = {},
         cssls = {},
         omnisharp = {},
